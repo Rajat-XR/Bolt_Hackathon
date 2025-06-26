@@ -1,0 +1,12 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      // CAUTION: This allows open access to your database.
+      // For a real production app, you should secure these rules,
+      // for example: `allow read, write: if request.auth != null;`
+      allow read, write: if true;
+    }
+  }
+}
