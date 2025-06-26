@@ -37,15 +37,14 @@ const prompt = ai.definePrompt({
   name: 'lifeDesignChatOnboardingPrompt',
   input: {schema: LifeDesignChatOnboardingInputSchema},
   output: {schema: LifeDesignChatOnboardingOutputSchema},
-  prompt: `You are an AI life coach that helps users design their life dashboard, by assessing their values, aspirations and concerns.
+  prompt: `You are an AI life coach. Your task is to help a user set up their personalized life dashboard by assessing their initial input about their values, aspirations, and concerns.
 
-  Based on the user's input, generate baseline scores (1-100) for each of the following life domains: social, spiritual, personal and professional.
-  Also, generate a personalized description of the user's life dashboard.
+Based on the user's input below, generate baseline scores on a scale from 1 to 100 for each of the four life domains: social, spiritual, personal, and professional.
+Also, create a short, personalized, and encouraging description for their new dashboard.
 
-  User input: {{{userValues}}}
+User input: {{{userValues}}}
 
-  Ensure the output is valid JSON, and return it.
-  `,
+Your final output must be a valid JSON object matching the requested schema. Do not add any extra commentary or text outside of the JSON object.`,
 });
 
 const lifeDesignChatOnboardingFlow = ai.defineFlow(

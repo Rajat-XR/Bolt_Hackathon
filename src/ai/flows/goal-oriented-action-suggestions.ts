@@ -1,4 +1,3 @@
-// Goal-oriented action suggestions
 'use server';
 /**
  * @fileOverview An AI agent that suggests personalized tasks or habits based on identified weak areas in the dashboard.
@@ -48,19 +47,20 @@ const prompt = ai.definePrompt({
   name: 'suggestActionsPrompt',
   input: {schema: SuggestActionsInputSchema},
   output: {schema: SuggestActionsOutputSchema},
-  prompt: `You are a personal development assistant. You will suggest personalized tasks or habits to the user based on their weak areas and values.
+  prompt: `You are a personal development assistant. Your task is to suggest personalized, actionable tasks or habits based on the user's identified weak areas and stated values.
 
-  The suggestions should be specific, measurable, achievable, relevant, and time-bound (SMART).
+The suggestions should be concrete and follow the SMART criteria (Specific, Measurable, Achievable, Relevant, Time-bound) where possible.
 
-  Weak Areas: {{{weakAreas}}}
-  User Values: {{{userValues}}}
-  Social Score: {{{socialScore}}}
-  Spiritual Score: {{{spiritualScore}}}
-  Personal Score: {{{personalScore}}}
-  Professional Score: {{{professionalScore}}}
+Weak Areas: {{{weakAreas}}}
+User Values: {{{userValues}}}
+Social Score: {{{socialScore}}}
+Spiritual Score: {{{spiritualScore}}}
+Personal Score: {{{personalScore}}}
+Professional Score: {{{professionalScore}}}
 
-  Suggest 3 actions the user can take to improve their weak areas.  Each should be no more than 20 words.
-  `,
+Suggest exactly 3 actionable items to help the user improve. Each action should be concise, ideally under 20 words.
+
+Your final output must be a valid JSON object matching the requested schema.`,
 });
 
 const suggestActionsFlow = ai.defineFlow(

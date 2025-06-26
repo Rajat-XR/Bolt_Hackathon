@@ -40,18 +40,23 @@ const prompt = ai.definePrompt({
   output: {schema: ParseJournalEntryOutputSchema},
   prompt: `You are an AI assistant designed to parse user journal entries and update their life dashboard scores.
 
-  Based on the user's journal entry, analyze the content and determine how it impacts their social, spiritual, personal, and professional scores.
+Analyze the user's journal entry and determine its impact on their social, spiritual, personal, and professional scores. Scores are on a scale of 0-100.
+- If the entry reflects positive progress, increase the score.
+- If it reflects a setback or neglect, decrease the score.
+- If neutral or irrelevant, keep the score the same.
+The change should be between 1 and 5 points.
 
-  Journal Entry: {{{journalEntry}}}
+Journal Entry: {{{journalEntry}}}
 
-  Current Scores:
-  - Social: {{{socialScore}}}
-  - Spiritual: {{{spiritualScore}}}
-  - Personal: {{{personalScore}}}
-  - Professional: {{{professionalScore}}}
+Current Scores:
+- Social: {{{socialScore}}}
+- Spiritual: {{{spiritualScore}}}
+- Personal: {{{personalScore}}}
+- Professional: {{{professionalScore}}}
 
-  Update the scores accordingly, providing a rationale for each change, and return any feedback to the user.
-`,
+Based on your analysis, calculate the new scores for each domain. Also, provide brief, encouraging, and constructive feedback for the user based on their entry.
+
+Your final output must be a valid JSON object matching the requested schema.`,
 });
 
 const parseJournalEntryFlow = ai.defineFlow(

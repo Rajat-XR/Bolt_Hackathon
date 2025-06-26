@@ -42,13 +42,13 @@ const prompt = ai.definePrompt({
   output: {schema: GetClarificationQuestionsOutputSchema},
   prompt: `You are an AI assistant designed to generate follow-up questions to better understand user input.
 
-Given the following user input, generate a list of questions that would help clarify their thoughts, feelings, or intentions. The questions should be open-ended and encourage the user to provide more detail. Focus on extracting values, aspirations, and concerns from the user input.
+Given the user's input, generate a list of open-ended questions that help clarify their thoughts, feelings, or intentions. The questions should encourage detailed responses, focusing on extracting the user's core values, aspirations, and concerns.
 
-Context: {{context}}
+Context: {{{context}}}
 
-User Input: {{userInput}}
+User Input: {{{userInput}}}
 
-Output the questions as a JSON array of strings.`,
+Your final output must be a valid JSON object containing a 'questions' key, which holds an array of strings.`,
 });
 
 const getClarificationQuestionsFlow = ai.defineFlow(
