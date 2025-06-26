@@ -1,4 +1,4 @@
-// use server'
+'use server';
 
 /**
  * @fileOverview A life design chat onboarding AI agent.
@@ -59,4 +59,3 @@ const lifeDesignChatOnboardingFlow = ai.defineFlow(
     return output!;
   }
 );
-
