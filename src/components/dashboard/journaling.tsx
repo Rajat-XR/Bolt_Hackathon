@@ -23,8 +23,8 @@ export function Journaling({ scores, setScores, setScoreHistory, userValues, act
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  const getWeakAreas = () => {
-    const sortedScores = Object.entries(scores).sort(([, a], [, b]) => a - b);
+  const getWeakAreas = (s: Scores) => {
+    const sortedScores = Object.entries(s).sort(([, a], [, b]) => a - b);
     return sortedScores.slice(0, 2).map(s => s[0]).join(', ');
   }
 
@@ -51,7 +51,7 @@ export function Journaling({ scores, setScores, setScoreHistory, userValues, act
       toast({ title: 'Dashboard Updated', description: result.feedback });
       
       const actionResult = await suggestActions({
-        weakAreas: getWeakAreas(),
+        weakAreas: getWeakAreas(newScores),
         userValues,
         ...newScores
       });

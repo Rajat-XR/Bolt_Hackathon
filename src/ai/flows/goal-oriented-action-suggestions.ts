@@ -60,7 +60,6 @@ const prompt = ai.definePrompt({
   Professional Score: {{{professionalScore}}}
 
   Suggest 3 actions the user can take to improve their weak areas.  Each should be no more than 20 words.
-  Respond in JSON format.
   `,
 });
 

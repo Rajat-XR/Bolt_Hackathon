@@ -51,15 +51,7 @@ const prompt = ai.definePrompt({
   - Professional: {{{professionalScore}}}
 
   Update the scores accordingly, providing a rationale for each change, and return any feedback to the user.
-
-  Output in JSON format:
-  {
-    "updatedSocialScore": <new social score>,
-    "updatedSpiritualScore": <new spiritual score>,
-    "updatedPersonalScore": <new personal score>,
-    "updatedProfessionalScore": <new professional score>,
-    "feedback": "<Feedback based on the journal entry.>"
-  }`,
+`,
 });
 
 const parseJournalEntryFlow = ai.defineFlow(
