@@ -37,7 +37,10 @@ export function Journaling({ scores, setScores, setScoreHistory, userValues, act
     try {
       const result = await parseJournalEntry({
         journalEntry,
-        ...scores
+        socialScore: scores.social,
+        personalScore: scores.personal,
+        professionalScore: scores.professional,
+        spiritualScore: scores.spiritual,
       });
 
       const newScores: Scores = {
@@ -53,7 +56,10 @@ export function Journaling({ scores, setScores, setScoreHistory, userValues, act
       const actionResult = await suggestActions({
         weakAreas: getWeakAreas(newScores),
         userValues,
-        ...newScores
+        socialScore: newScores.social,
+        personalScore: newScores.personal,
+        professionalScore: newScores.professional,
+        spiritualScore: newScores.spiritual,
       });
 
       const newActions: ActionItem[] = actionResult.suggestedActions.map(text => ({ id: crypto.randomUUID(), text, completed: false }));
