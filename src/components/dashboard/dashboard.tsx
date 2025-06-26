@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ChatInterface, type ChatMessage } from './chat-interface';
 import { db } from '@/lib/firebase';
 import { collection, doc, getDoc, setDoc, onSnapshot, query, orderBy, limit, serverTimestamp } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
 
 const USER_ID = 'default-user'; // Hardcoded user ID for this prototype
 
@@ -66,6 +67,8 @@ function DashboardSkeleton() {
 export function Dashboard() {
   const [isClient, setIsClient] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+  const [isConfigured, setIsConfigured] = useState(true);
   
   const [isOnboardingCompleted, setIsOnboardingCompleted] = useState(false);
   const [userValues, setUserValues] = useState('');
@@ -75,29 +78,45 @@ export function Dashboard() {
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
   const [memories, setMemories] = useState<string[]>([]);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+
+  useEffect(() => {
+    const firebaseProjectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+    if (!firebaseProjectId || firebaseProjectId === 'your_project_id') {
+      toast({
+        title: 'Configuration Error',
+        description: "Your Firebase Project ID is not set. Please add it to the .env file.",
+        variant: 'destructive',
+        duration: Infinity,
+      });
+      setIsConfigured(false);
+      setIsLoading(false);
+    }
+  }, [toast]);
   
   const saveUserData = useCallback(async (data: Partial<UserData>) => {
-      if (!isClient) return;
+      if (!isClient || !isConfigured) return;
       try {
         const userDocRef = doc(db, 'users', USER_ID);
         await setDoc(userDocRef, data, { merge: true });
       } catch (error) {
         console.error("Failed to save user data:", error);
       }
-  }, [isClient]);
+  }, [isClient, isConfigured]);
 
   const addChatMessage = useCallback(async (message: Omit<ChatMessage, 'id' | 'timestamp'>) => {
-    if (!isClient) return;
+    if (!isClient || !isConfigured) return;
     try {
         const chatDocRef = doc(collection(db, 'users', USER_ID, 'chatHistory'));
         await setDoc(chatDocRef, { ...message, timestamp: serverTimestamp() });
     } catch (error) {
         console.error("Failed to add chat message:", error);
     }
-  }, [isClient]);
+  }, [isClient, isConfigured]);
 
   useEffect(() => {
     setIsClient(true);
+    if (!isConfigured) return;
+
     const loadData = async () => {
         try {
             const userDocRef = doc(db, 'users', USER_ID);
@@ -145,9 +164,11 @@ export function Dashboard() {
             unsubscribe();
         }
     };
-  }, []);
+  }, [isConfigured]);
 
   const handleOnboardingComplete = (data: LifeDesignChatOnboardingOutput, values: string) => {
+    if (!isConfigured) return;
+    
     const newScores = {
       social: data.socialScore,
       personal: data.personalScore,
