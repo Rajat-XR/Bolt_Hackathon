@@ -27,7 +27,7 @@ export type ScoreHistory = {
 };
 
 export type ActionItem = {
-  id: string;
+  id:string;
   text: string;
   completed: boolean;
 };
@@ -68,7 +68,6 @@ export function Dashboard() {
   const [isClient, setIsClient] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
-  const [isConfigured, setIsConfigured] = useState(true);
   
   const [isOnboardingCompleted, setIsOnboardingCompleted] = useState(false);
   const [userValues, setUserValues] = useState('');
@@ -80,42 +79,51 @@ export function Dashboard() {
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
 
   useEffect(() => {
-    const firebaseProjectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-    if (!firebaseProjectId || firebaseProjectId === 'your_project_id') {
+    if (!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === 'your-project-id') {
+        toast({
+            title: 'Configuration Error',
+            description: "Your Firebase Project ID is not set. Please update the .env file.",
+            variant: 'destructive',
+            duration: Infinity
+        });
+        setIsLoading(false);
+        return;
+    }
+    if (!process.env.GOOGLE_API_KEY || process.env.GOOGLE_API_KEY === 'your_api_key') {
       toast({
-        title: 'Configuration Error',
-        description: "Your Firebase Project ID is not set. Please add it to the .env file.",
-        variant: 'destructive',
-        duration: Infinity,
-      });
-      setIsConfigured(false);
-      setIsLoading(false);
+            title: 'Configuration Error',
+            description: "Your Gemini API Key is not set. Please update the .env file.",
+            variant: 'destructive',
+            duration: Infinity
+        });
+        setIsLoading(false);
+        return;
     }
   }, [toast]);
   
   const saveUserData = useCallback(async (data: Partial<UserData>) => {
-      if (!isClient || !isConfigured) return;
+      if (!isClient) return;
       try {
         const userDocRef = doc(db, 'users', USER_ID);
         await setDoc(userDocRef, data, { merge: true });
       } catch (error) {
         console.error("Failed to save user data:", error);
+        throw new Error("Failed to save user data to Firestore.");
       }
-  }, [isClient, isConfigured]);
+  }, [isClient]);
 
   const addChatMessage = useCallback(async (message: Omit<ChatMessage, 'id' | 'timestamp'>) => {
-    if (!isClient || !isConfigured) return;
+    if (!isClient) return;
     try {
         const chatDocRef = doc(collection(db, 'users', USER_ID, 'chatHistory'));
         await setDoc(chatDocRef, { ...message, timestamp: serverTimestamp() });
     } catch (error) {
         console.error("Failed to add chat message:", error);
     }
-  }, [isClient, isConfigured]);
+  }, [isClient]);
 
   useEffect(() => {
     setIsClient(true);
-    if (!isConfigured) return;
 
     const loadData = async () => {
         try {
@@ -145,12 +153,15 @@ export function Dashboard() {
                     history.push({ id: doc.id, ...doc.data() } as ChatMessage);
                 });
                 setChatHistory(history);
+            }, (error) => {
+                console.error("Chat history listener failed:", error);
             });
 
             return unsubscribe;
 
         } catch (error) {
             console.error("Failed to load user data:", error);
+            toast({ title: 'Error Loading Data', description: 'Could not connect to the database.', variant: 'destructive' });
         } finally {
             setIsLoading(false);
         }
@@ -164,11 +175,9 @@ export function Dashboard() {
             unsubscribe();
         }
     };
-  }, [isConfigured]);
+  }, [toast]);
 
   const handleOnboardingComplete = (data: LifeDesignChatOnboardingOutput, values: string) => {
-    if (!isConfigured) return;
-    
     const newScores = {
       social: data.socialScore,
       personal: data.personalScore,
@@ -196,74 +205,81 @@ export function Dashboard() {
     setMemories([]);
     setIsOnboardingCompleted(true);
     
-    saveUserData(newUserData);
+    saveUserData(newUserData).catch(error => {
+        toast({
+            title: 'Save Failed',
+            description: 'Your dashboard could not be saved. Please check your connection and refresh.',
+            variant: 'destructive'
+        });
+    });
   };
   
-  if (!isClient || isLoading) {
+  if (isLoading) {
       return <DashboardSkeleton />;
   }
-
-  if (!isOnboardingCompleted) {
-    return <OnboardingDialog onOnboardingComplete={handleOnboardingComplete} />;
-  }
-
+  
   return (
-    <div className="container mx-auto p-4 sm:p-6 lg:p-8">
-      <div className="space-y-8">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Your Life Dashboard</h2>
-          <p className="text-muted-foreground">{dashboardDescription}</p>
-        </div>
+    <>
+        <OnboardingDialog open={!isOnboardingCompleted} onOnboardingComplete={handleOnboardingComplete} />
+        
+        {isOnboardingCompleted && (
+            <div className="container mx-auto p-4 sm:p-6 lg:p-8">
+            <div className="space-y-8">
+                <div>
+                <h2 className="text-2xl font-bold tracking-tight">Your Life Dashboard</h2>
+                <p className="text-muted-foreground">{dashboardDescription}</p>
+                </div>
 
-        <DomainScores scores={scores} />
+                <DomainScores scores={scores} />
 
-        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-          <ChatInterface 
-            scores={scores} 
-            userValues={userValues}
-            memories={memories}
-            chatHistory={chatHistory}
-            onNewChatMessage={addChatMessage}
-            onAIAssistantResponse={(output) => {
-                if (output.scoreUpdates) {
-                    setScores(output.scoreUpdates);
-                    setScoreHistory(prev => {
-                        const newHistory = [...prev.slice(-30), { date: new Date().toISOString(), scores: output.scoreUpdates! }];
-                        saveUserData({ scoreHistory: newHistory });
-                        return newHistory;
-                    });
-                    saveUserData({ scores: output.scoreUpdates });
-                }
-                if (output.newActions && output.newActions.length > 0) {
+                <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+                <ChatInterface 
+                    scores={scores} 
+                    userValues={userValues}
+                    memories={memories}
+                    chatHistory={chatHistory}
+                    onNewChatMessage={addChatMessage}
+                    onAIAssistantResponse={(output) => {
+                        if (output.scoreUpdates) {
+                            const newScores = { ...scores, ...output.scoreUpdates };
+                            setScores(newScores);
+                            const newHistoryEntry = { date: new Date().toISOString(), scores: newScores };
+                            const newHistory = [...scoreHistory.slice(-30), newHistoryEntry];
+                            setScoreHistory(newHistory);
+                            saveUserData({ scores: newScores, scoreHistory: newHistory });
+                        }
+                        if (output.newActions && output.newActions.length > 0) {
+                            setActionItems(prev => {
+                                const newItems = output.newActions!.map(text => ({ id: crypto.randomUUID(), text, completed: false }));
+                                const uniqueNewItems = newItems.filter(newItem => !prev.some(existing => existing.text === newItem.text));
+                                const updatedActions = [...uniqueNewItems, ...prev];
+                                saveUserData({ actionItems: updatedActions });
+                                return updatedActions;
+                            });
+                        }
+                        if (output.newMemory) {
+                            setMemories(prev => {
+                                const updatedMemories = [...prev, output.newMemory!];
+                                saveUserData({ memories: updatedMemories });
+                                return updatedMemories;
+                            });
+                        }
+                    }}
+                />
+                <ActionSuggestions actionItems={actionItems} setActionItems={(updater) => {
                     setActionItems(prev => {
-                        const newItems = output.newActions!.map(text => ({ id: crypto.randomUUID(), text, completed: false }));
-                        const uniqueNewItems = newItems.filter(newItem => !prev.some(existing => existing.text === newItem.text));
-                        const updatedActions = [...uniqueNewItems, ...prev];
-                        saveUserData({ actionItems: updatedActions });
-                        return updatedActions;
+                        const newItems = typeof updater === 'function' ? updater(prev) : updater;
+                        saveUserData({ actionItems: newItems });
+                        return newItems;
                     });
-                }
-                if (output.newMemory) {
-                    setMemories(prev => {
-                        const updatedMemories = [...prev, output.newMemory!];
-                        saveUserData({ memories: updatedMemories });
-                        return updatedMemories;
-                    });
-                }
-            }}
-          />
-          <ActionSuggestions actionItems={actionItems} setActionItems={(updater) => {
-              setActionItems(prev => {
-                const newItems = typeof updater === 'function' ? updater(prev) : updater;
-                saveUserData({ actionItems: newItems });
-                return newItems;
-              });
-          }} />
-          <div className="lg:col-span-3">
-            <GrowthTracker scoreHistory={scoreHistory} />
-          </div>
-        </div>
-      </div>
-    </div>
+                }} />
+                <div className="lg:col-span-3">
+                    <GrowthTracker scoreHistory={scoreHistory} />
+                </div>
+                </div>
+            </div>
+            </div>
+        )}
+    </>
   );
 }
