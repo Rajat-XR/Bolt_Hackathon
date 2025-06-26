@@ -10,6 +10,10 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+if (!firebaseConfig.projectId) {
+  console.warn("NEXT_PUBLIC_FIREBASE_PROJECT_ID is not set. Please update the .env file with your Firebase project configuration for the app to function correctly.");
+}
+
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
