@@ -27,11 +27,16 @@ interface ChatInterfaceProps {
   onAIAssistantResponse: (output: ConversationalChatOutput) => void;
 }
 
-export function ChatInterface({ scores, userValues, memories, chatHistory, onNewChatMessage, onAIAssistantResponse }: ChatInterfaceProps) {
+export function ChatInterface({ scores, userValues, memories, chatHistory: firestoreHistory, onNewChatMessage, onAIAssistantResponse }: ChatInterfaceProps) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const [localChatHistory, setLocalChatHistory] = useState<ChatMessage[]>(firestoreHistory);
+
+  useEffect(() => {
+    setLocalChatHistory(firestoreHistory);
+  }, [firestoreHistory]);
 
   useEffect(() => {
     // Scroll to bottom when new messages are added
@@ -41,32 +46,36 @@ export function ChatInterface({ scores, userValues, memories, chatHistory, onNew
             behavior: 'smooth'
         });
     }
-  }, [chatHistory]);
+  }, [localChatHistory]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
-    const userMessage: Omit<ChatMessage, 'id' | 'timestamp'> = { role: 'user', content: input };
-    
-    setIsLoading(true);
+    const userInput = input;
+    const userMessage: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: userInput, timestamp: new Date() };
+
+    setLocalChatHistory(prev => [...prev, userMessage]);
     setInput('');
-    await onNewChatMessage(userMessage);
+    setIsLoading(true);
+
+    onNewChatMessage({ role: 'user', content: userInput });
 
     try {
-        const assistantHistory = chatHistory.map(m => ({role: m.role, content: m.content as string}));
+        const historyForAI = [...localChatHistory].map(m => ({role: m.role, content: m.content as string}));
 
         const result = await conversationalChat({
-            message: input,
-            chatHistory: assistantHistory,
+            message: userInput,
+            chatHistory: historyForAI.slice(0, -1),
             scores,
             userValues,
             memories,
         });
 
-        const assistantMessage: Omit<ChatMessage, 'id' | 'timestamp'> = { role: 'assistant', content: result.response };
-        await onNewChatMessage(assistantMessage);
+        const assistantMessage: ChatMessage = { id: crypto.randomUUID(), role: 'assistant', content: result.response, timestamp: new Date() };
+        setLocalChatHistory(prev => [...prev, assistantMessage]);
         
+        onNewChatMessage({ role: 'assistant', content: result.response });
         onAIAssistantResponse(result);
         
         if (result.feedback) {
@@ -81,9 +90,13 @@ export function ChatInterface({ scores, userValues, memories, chatHistory, onNew
 
     } catch (error) {
       console.error('Chat failed:', error);
+      const errorText = "I'm sorry, I encountered an error. This could be due to an invalid API key or a network issue. Please check your configuration and try again.";
+      const errorMessage: ChatMessage = { id: crypto.randomUUID(), role: 'assistant', content: errorText, timestamp: new Date() };
+      
+      setLocalChatHistory(prev => [...prev, errorMessage]);
+      onNewChatMessage({ role: 'assistant', content: errorText });
+      
       toast({ title: 'Error Processing Message', description: 'Something went wrong. Please try again.', variant: 'destructive' });
-      const errorMessage: Omit<ChatMessage, 'id' | 'timestamp'> = { role: 'assistant', content: "I'm sorry, I encountered an error. Please try again." };
-      await onNewChatMessage(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -98,7 +111,7 @@ export function ChatInterface({ scores, userValues, memories, chatHistory, onNew
       <CardContent className="flex-1 flex flex-col gap-4 overflow-hidden">
         <ScrollArea className="flex-1 pr-4" ref={scrollAreaRef}>
           <div className="space-y-4">
-            {chatHistory.map((message) => (
+            {localChatHistory.map((message) => (
               <div key={message.id} className={cn("flex items-start gap-3", message.role === 'user' ? 'justify-end' : 'justify-start')}>
                 {message.role === 'assistant' && (
                   <Avatar className="w-8 h-8">
@@ -115,7 +128,7 @@ export function ChatInterface({ scores, userValues, memories, chatHistory, onNew
                 )}
               </div>
             ))}
-             {isLoading && chatHistory.at(-1)?.role === 'user' && (
+             {isLoading && (
                 <div className="flex items-start gap-3 justify-start">
                     <Avatar className="w-8 h-8">
                         <AvatarFallback className="bg-primary text-primary-foreground"><Bot size={20}/></AvatarFallback>

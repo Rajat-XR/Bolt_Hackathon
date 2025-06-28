@@ -51,9 +51,8 @@ export function OnboardingDialog({ open, onOnboardingComplete }: OnboardingDialo
         description: 'There was an error setting up your dashboard. Please try again.',
         variant: 'destructive',
       });
-    } finally {
-      setIsLoading(false);
     }
+    // No finally block to keep the dialog open until parent state changes
   };
 
   return (

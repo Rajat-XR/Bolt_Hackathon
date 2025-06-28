@@ -12,6 +12,8 @@ import { db } from '@/lib/firebase';
 import { collection, doc, getDoc, setDoc, onSnapshot, query, orderBy, limit, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import type { ConversationalChatOutput } from '@/ai/flows/conversational-chat';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
+import { Terminal } from 'lucide-react';
 
 const USER_ID = 'default-user'; // Hardcoded user ID for this prototype
 
@@ -68,6 +70,7 @@ function DashboardSkeleton() {
 export function Dashboard() {
   const [isClient, setIsClient] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [configError, setConfigError] = useState<string | null>(null);
   const { toast } = useToast();
   
   const [onboardingData, setOnboardingData] = useState<{
@@ -87,19 +90,20 @@ export function Dashboard() {
 
   useEffect(() => {
     setIsClient(true);
-    if (!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === 'your-project-id' || !process.env.GOOGLE_API_KEY || process.env.GOOGLE_API_KEY === 'your_api_key') {
-      toast({
-            title: 'Configuration Error',
-            description: "Your Firebase or Gemini API keys are not set. Please update the .env file for the app to function correctly.",
-            variant: 'destructive',
-            duration: Infinity
-        });
+    if (!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === 'your-project-id') {
+      setConfigError("Your Firebase project credentials are not set. Please update the .env file for the app to function correctly.");
       setIsLoading(false);
+      return;
     }
-  }, [toast]);
+    if (!process.env.GOOGLE_API_KEY || process.env.GOOGLE_API_KEY === 'your_api_key') {
+      setConfigError("Your Gemini API key is not set. Please update the .env file for the app to function correctly.");
+      setIsLoading(false);
+      return;
+    }
+  }, []);
   
   const saveUserData = useCallback(async (data: Partial<UserData>) => {
-      if (!isClient) return;
+      if (!isClient || configError) return;
       try {
         const userDocRef = doc(db, 'users', USER_ID);
         await setDoc(userDocRef, data, { merge: true });
@@ -107,20 +111,20 @@ export function Dashboard() {
         console.error("Failed to save user data:", error);
         toast({ title: 'Error Saving Data', description: 'Could not connect to the database.', variant: 'destructive' });
       }
-  }, [isClient, toast]);
+  }, [isClient, toast, configError]);
 
   const addChatMessage = useCallback(async (message: Omit<ChatMessage, 'id' | 'timestamp'>) => {
-    if (!isClient) return;
+    if (!isClient || configError) return;
     try {
         const chatDocRef = doc(collection(db, 'users', USER_ID, 'chatHistory'));
         await setDoc(chatDocRef, { ...message, timestamp: serverTimestamp() });
     } catch (error) {
         console.error("Failed to add chat message:", error);
     }
-  }, [isClient]);
+  }, [isClient, configError]);
 
   useEffect(() => {
-    if (!isClient) return;
+    if (!isClient || configError) return;
 
     let unsubscribeUser: (() => void) | undefined;
     let unsubscribeChat: (() => void) | undefined;
@@ -145,6 +149,10 @@ export function Dashboard() {
                     setScoreHistory([{ date: today, scores: { social: 50, personal: 50, professional: 50, spiritual: 50 } }]);
                 }
                 setIsLoading(false);
+            }, (error) => {
+              console.error("Firestore user snapshot error:", error);
+              toast({ title: 'Error Loading User Data', description: 'Could not connect to the database.', variant: 'destructive' });
+              setIsLoading(false);
             });
 
             const q = query(collection(db, 'users', USER_ID, 'chatHistory'), orderBy('timestamp', 'asc'), limit(50));
@@ -160,6 +168,9 @@ export function Dashboard() {
                     } as ChatMessage);
                 });
                 setChatHistory(history);
+            }, (error) => {
+              console.error("Firestore chat snapshot error:", error);
+              toast({ title: 'Error Loading Chat History', description: 'Could not load chat history.', variant: 'destructive' });
             });
 
         } catch (error) {
@@ -175,45 +186,51 @@ export function Dashboard() {
         if (unsubscribeUser) unsubscribeUser();
         if (unsubscribeChat) unsubscribeChat();
     };
-  }, [isClient, toast]);
+  }, [isClient, toast, configError]);
   
   const handleAIAssistantResponse = useCallback((output: ConversationalChatOutput) => {
     const dataToSave: Partial<UserData> = {};
     let wasUpdated = false;
 
-    if (output.scoreUpdates) {
-        const newScores = { ...scores, ...output.scoreUpdates };
-        const newHistory = [...scoreHistory.slice(-29), { date: new Date().toISOString().split('T')[0], scores: newScores }];
-        
-        setScores(newScores);
-        setScoreHistory(newHistory);
+    let newScores = scores;
+    let newHistory = scoreHistory;
+    let newActionItems = actionItems;
+    let newMemories = memories;
 
+    if (output.scoreUpdates) {
+        newScores = { ...scores, ...output.scoreUpdates };
+        newHistory = [...scoreHistory.slice(-29), { date: new Date().toISOString().split('T')[0], scores: newScores }];
         dataToSave.scores = newScores;
         dataToSave.scoreHistory = newHistory;
         wasUpdated = true;
     }
     if (output.newActions && output.newActions.length > 0) {
-        setActionItems(prev => {
-            const newItems = output.newActions!.map(text => ({ id: crypto.randomUUID(), text, completed: false }));
-            const updatedActions = [...newItems.filter(newItem => !prev.some(existing => existing.text === newItem.text)), ...prev];
-            dataToSave.actionItems = updatedActions;
-            return updatedActions;
-        });
-        wasUpdated = true;
+        const currentActionTexts = new Set(actionItems.map(item => item.text));
+        const uniqueNewItems = output.newActions
+            .filter(text => !currentActionTexts.has(text))
+            .map(text => ({ id: crypto.randomUUID(), text, completed: false }));
+        
+        if (uniqueNewItems.length > 0) {
+            newActionItems = [...uniqueNewItems, ...actionItems];
+            dataToSave.actionItems = newActionItems;
+            wasUpdated = true;
+        }
     }
     if (output.newMemory) {
-        setMemories(prev => {
-            const updatedMemories = [...prev, output.newMemory!];
-            dataToSave.memories = updatedMemories;
-            return updatedMemories;
-        });
+        newMemories = [...memories, output.newMemory];
+        dataToSave.memories = newMemories;
         wasUpdated = true;
     }
 
     if (wasUpdated) {
-      setTimeout(() => saveUserData(dataToSave), 100);
+        if (dataToSave.scores) setScores(newScores);
+        if (dataToSave.scoreHistory) setScoreHistory(newHistory);
+        if (dataToSave.actionItems) setActionItems(newActionItems);
+        if (dataToSave.memories) setMemories(newMemories);
+        
+        saveUserData(dataToSave);
     }
-  }, [scores, scoreHistory, saveUserData]);
+  }, [scores, scoreHistory, actionItems, memories, saveUserData]);
 
   const handleOnboardingComplete = async (data: LifeDesignChatOnboardingOutput, values: string) => {
     const newScores = {
@@ -236,20 +253,24 @@ export function Dashboard() {
     };
     
     await saveUserData(newUserData);
-    
-    setOnboardingData({
-        completed: true,
-        userValues: values,
-        dashboardDescription: data.dashboardDescription,
-    });
-    setScores(newScores);
-    setScoreHistory(newHistory);
-    setActionItems([]);
-    setMemories([]);
   };
   
   if (isLoading) {
       return <DashboardSkeleton />;
+  }
+
+  if (configError) {
+      return (
+          <div className="container mx-auto p-4 sm:p-6 lg:p-8">
+              <Alert variant="destructive">
+                  <Terminal className="h-4 w-4" />
+                  <AlertTitle>Configuration Error</AlertTitle>
+                  <AlertDescription>
+                      {configError}
+                  </AlertDescription>
+              </Alert>
+          </div>
+      );
   }
   
   return (
