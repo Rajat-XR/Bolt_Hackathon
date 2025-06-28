@@ -12,8 +12,6 @@ import { db } from '@/lib/firebase';
 import { collection, doc, getDoc, setDoc, onSnapshot, query, orderBy, limit, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import type { ConversationalChatOutput } from '@/ai/flows/conversational-chat';
-import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
-import { Terminal } from 'lucide-react';
 
 const USER_ID = 'default-user'; // Hardcoded user ID for this prototype
 
@@ -70,7 +68,6 @@ function DashboardSkeleton() {
 export function Dashboard() {
   const [isClient, setIsClient] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [configError, setConfigError] = useState<string | null>(null);
   const { toast } = useToast();
   
   const [onboardingData, setOnboardingData] = useState<{
@@ -90,15 +87,10 @@ export function Dashboard() {
 
   useEffect(() => {
     setIsClient(true);
-    if (!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === 'your-project-id') {
-      setConfigError("Your Firebase project credentials are not set. Please update the .env file for the app to function correctly.");
-      setIsLoading(false);
-      return;
-    }
   }, []);
   
   const saveUserData = useCallback(async (data: Partial<UserData>) => {
-      if (!isClient || configError) return;
+      if (!isClient) return;
       try {
         const userDocRef = doc(db, 'users', USER_ID);
         await setDoc(userDocRef, data, { merge: true });
@@ -106,20 +98,20 @@ export function Dashboard() {
         console.error("Failed to save user data:", error);
         toast({ title: 'Error Saving Data', description: 'Could not connect to the database.', variant: 'destructive' });
       }
-  }, [isClient, toast, configError]);
+  }, [isClient, toast]);
 
   const addChatMessage = useCallback(async (message: Omit<ChatMessage, 'id' | 'timestamp'>) => {
-    if (!isClient || configError) return;
+    if (!isClient) return;
     try {
         const chatDocRef = doc(collection(db, 'users', USER_ID, 'chatHistory'));
         await setDoc(chatDocRef, { ...message, timestamp: serverTimestamp() });
     } catch (error) {
         console.error("Failed to add chat message:", error);
     }
-  }, [isClient, configError]);
+  }, [isClient]);
 
   useEffect(() => {
-    if (!isClient || configError) return;
+    if (!isClient) return;
 
     let unsubscribeUser: (() => void) | undefined;
     let unsubscribeChat: (() => void) | undefined;
@@ -181,7 +173,7 @@ export function Dashboard() {
         if (unsubscribeUser) unsubscribeUser();
         if (unsubscribeChat) unsubscribeChat();
     };
-  }, [isClient, toast, configError]);
+  }, [isClient, toast]);
   
   const handleAIAssistantResponse = useCallback((output: ConversationalChatOutput) => {
     const dataToSave: Partial<UserData> = {};
@@ -253,20 +245,6 @@ export function Dashboard() {
   
   if (isLoading) {
       return <DashboardSkeleton />;
-  }
-
-  if (configError) {
-      return (
-          <div className="container mx-auto p-4 sm:p-6 lg:p-8">
-              <Alert variant="destructive">
-                  <Terminal className="h-4 w-4" />
-                  <AlertTitle>Configuration Error</AlertTitle>
-                  <AlertDescription>
-                      {configError}
-                  </AlertDescription>
-              </Alert>
-          </div>
-      );
   }
   
   return (
