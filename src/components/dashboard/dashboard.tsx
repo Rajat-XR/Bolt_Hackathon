@@ -95,11 +95,6 @@ export function Dashboard() {
       setIsLoading(false);
       return;
     }
-    if (!process.env.GOOGLE_API_KEY || process.env.GOOGLE_API_KEY === 'your_api_key') {
-      setConfigError("Your Gemini API key is not set. Please update the .env file for the app to function correctly.");
-      setIsLoading(false);
-      return;
-    }
   }, []);
   
   const saveUserData = useCallback(async (data: Partial<UserData>) => {
@@ -253,6 +248,7 @@ export function Dashboard() {
     };
     
     await saveUserData(newUserData);
+    setOnboardingData(prev => ({ ...prev, completed: true, ...newUserData }));
   };
   
   if (isLoading) {
@@ -276,7 +272,7 @@ export function Dashboard() {
   return (
     <>
         <OnboardingDialog 
-          open={!onboardingData.completed} 
+          open={!onboardingData.completed && !isLoading} 
           onOnboardingComplete={handleOnboardingComplete} />
         
         {onboardingData.completed && (
